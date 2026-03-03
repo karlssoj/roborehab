@@ -2,6 +2,8 @@ from ultralytics import YOLO
 import cv2
 import math
 import datetime
+import collections
+import statistics
 
 model = YOLO('Yolo11_cvrehab_lite.pt')  # load an official model
 
@@ -13,6 +15,9 @@ left = False
 side_selected = False
 
 fNum = 0
+
+MEDIAN_WINDOW = 7  # Number of frames for median smoothing
+angle_history = collections.deque(maxlen=MEDIAN_WINDOW)
 
 def get_distance(pos1, pos2):
     dist = math.sqrt((pos1[0] - pos2[0]) ** 2 + (pos1[1] - pos2[1]) ** 2)
@@ -114,6 +119,7 @@ def draw_knee_joints(frame, hip, knee, ankle):
 
         # Calculate knee angle
         angle = calculate_knee_angle(hip, knee, ankle)
+        angle_history.append(angle)
         measuring = True
     else:
         measuring = False
@@ -136,7 +142,7 @@ while cap.isOpened():
     if not ret:
         break
 
-    frame = cv2.resize(frame, None, fx=1.1, fy=1.1, interpolation=cv2.INTER_NEAREST)
+    frame = cv2.resize(frame, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_NEAREST)
 
     # Set mouse callback once with frame dimensions
     if not callback_set:
@@ -187,7 +193,8 @@ while cap.isOpened():
         else:
             knee_string = 'Right knee angle = '
 
-        knee_string = knee_string + str(int(angle)) + ' degrees'
+        median_angle = statistics.median(angle_history) if angle_history else angle
+        knee_string = knee_string + str(int(median_angle)) + ' degrees'
         cv2.putText(frame, knee_string, (100, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 0), 2, cv2.LINE_AA)
     elif not side_selected:
         cv2.putText(frame, 'Click L or R button to select side', (frame.shape[1]//2 - 250, frame.shape[0]//2),
